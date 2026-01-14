@@ -68,4 +68,4 @@ git clone [https://github.com/TU_USUARIO/monitor-salud-arg.git](https://github.c
 
 4. Visualizar: Renderizar dashboard.qmd.
 
-*** Datos Abiertos: Ministerio de Salud de la Nación Argentina.***
+> **Datos Abiertos: Ministerio de Salud de la Nación Argentina.**
