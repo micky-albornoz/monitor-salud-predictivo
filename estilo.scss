@@ -1,0 +1,63 @@
+/*-- scss:defaults --*/
+
+// Colores Institucionales
+$navbar-bg: #1A3243;    // El azul oscuro de LinkedIn/Búsquedas
+$navbar-fg: #ffffff;    // Texto de la barra en blanco para contraste
+$primary: #FFD500;      // El amarillo de los botones de "Más información"
+$body-bg: #f8f9fa;      // Un gris muy claro de fondo para que resalte el azul
+
+/*-- scss:rules --*/
+
+// 1. Línea amarilla característica debajo de la barra
+.navbar {
+  border-bottom: 4px solid #FFD500 !important;
+}
+
+// 2. Separación clara entre Título y Autor
+.navbar-author {
+  font-size: 0.9em;
+  font-weight: 300;
+  margin-left: 20px;
+  padding-left: 20px;
+  border-left: 1px solid rgba(255, 255, 255, 0.3); // Línea vertical sutil
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+// 3. Estilo para los botones (como los de la imagen de "Más información")
+.btn-primary {
+  background-color: #FFD500 !important;
+  border-color: #FFD500 !important;
+  color: #000000 !important; // Texto negro para legibilidad
+  font-weight: 600;
+  border-radius: 8px; // Bordes redondeados como en la foto
+  
+  &:hover {
+    background-color: #e6c000 !important;
+    border-color: #e6c000 !important;
+  }
+}
+
+/*-- scss:rules --*/
+
+// Eliminamos el espacio extra en la parte superior del dashboard
+.navbar {
+  margin-bottom: 0px !important;
+}
+
+// Reducimos el padding de las tarjetas al mínimo para que el gráfico sea el protagonista
+.card-body {
+  padding: 5px !important;
+  display: flex;
+  flex-direction: column;
+}
+
+// Quitamos el margen de los títulos para que no "empujen" al gráfico hacia abajo
+.ojs-markdown h3, .card-title {
+  margin-top: 5px !important;
+  margin-bottom: 5px !important;
+}
+
+// Forzamos a que el contenedor de Observable ocupe todo el alto disponible
+.ojs-auto-height {
+  flex-grow: 1;
+}

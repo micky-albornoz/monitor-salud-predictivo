@@ -1,0 +1,189 @@
+---
+title: "Monitor Federal de Salud"
+author: "Miguel Albornoz"
+format: 
+  dashboard:
+    theme: [zephyr, estilo.scss]
+    fill: true  # Esto obliga a los gráficos a ocupar todo el espacio
+nav-buttons:
+  - icon: github
+    href: https://github.com/micky-fearnot
+---
+
+```{r}
+#| context: setup
+#| include: false
+library(tidyverse)
+
+# 1. Carga de Datos (Lado del Servidor/R)
+data <- read_rds("data/processed/pronostico_final.rds")
+
+# 2. Serialización (Puente R -> JavaScript)
+# Usamos ojs_define para pasar los datos de forma segura y eficiente
+ojs_define(data_r = data)
+```
+
+```{ojs}
+//| output: false
+// 3. Hidratación de Datos (Lado del Cliente/JS)
+// Transponemos los datos recibidos de R (que vienen por columnas) y parseamos las fechas
+data = transpose(data_r).map(d => ({
+  ...d,
+  ds: new Date(d.ds) 
+}))
+```
+
+# {.sidebar}
+### Filtros Dinámicos
+Seleccione Jurisdicción y Patología para visualizar la curva epidémica proyectada.
+
+```{ojs}
+//| panel: input
+
+// Selector 1: Extrae provincias únicas y crea el menú
+viewof selectedProv = Inputs.select(
+  data.map(d => d.provincia_nombre), 
+  {unique: true, label: "📍 Provincia:", value: "Ciudad Autónoma de Buenos Aires"}
+)
+
+// Selector 2: Extrae enfermedades únicas y crea el menú
+viewof selectedDisease = Inputs.select(
+  data.map(d => d.enfermedad), 
+  {unique: true, label: "🦠 Patología:", value: "Bronquiolitis"}
+)
+```
+
+
+# Tablero de Comando
+
+```{ojs}
+// 1. Creamos el título dinámico usando "Template Literals" (las comillas invertidas ``)
+md`### Evolución Semanal de Casos: ${selectedDisease} (${selectedProv})`
+
+Plot.plot({
+  // Aumentamos el margen inferior para que la etiqueta centrada no se pegue al borde
+  marginBottom: 50,
+  marks: [
+    Plot.ruleY([0]),
+    
+    // CAPA 1: Área de Incertidumbre (Sombra)
+    // Filtramos dinámicamente según lo que el usuario eligió arriba
+    Plot.areaY(data.filter(d => d.provincia_nombre == selectedProv && d.enfermedad == selectedDisease), {
+      x: "ds", 
+      y1: "yhat_lower", 
+      y2: "yhat_upper", 
+      fill: "type", 
+      fillOpacity: 0.2
+    }),
+    
+    // CAPA 2: Línea Principal (Tendencia)
+    Plot.line(data.filter(d => d.provincia_nombre == selectedProv && d.enfermedad == selectedDisease), {
+      x: "ds", 
+      y: "yhat", 
+      stroke: "type", 
+      strokeWidth: 3
+    }),
+    
+    // CAPA 3: Interacción (Tooltip al pasar el mouse)
+    Plot.tip(data.filter(d => d.provincia_nombre == selectedProv && d.enfermedad == selectedDisease), 
+      Plot.pointerX({
+        x: "ds", 
+        y: "yhat", 
+        title: d => `Fecha: ${d.ds.toLocaleDateString('es-AR')}\nCasos Est.: ${Math.round(d.yhat)}`
+      })
+    )
+  ],
+  x: {
+    label: "Fecha", 
+    // Centramos la etiqueta 
+    labelAnchor: "center",
+    // La bajamos un poco para que no se mezcle con los años 
+    labelOffset: 40,
+    tickFormat: "%b %Y"},
+  y: {
+    label: "Casos Semanales",
+    grid: true,
+    tickFormat: d => d.toLocaleString('es-AR') // Agrega puntos de miles automáticamente
+    },
+  color: {domain: ["Histórico", "Proyección"], range: ["#1A3243", "#FF7F50"]},
+  style: {fontSize: "14px", fontFamily: "sans-serif"}
+})
+```
+
+
+# Análisis Comparativo {orientation="columns"}
+
+## Column {width=60%}
+
+```{ojs}
+// 1. Agrupamos y sumamos las proyecciones por provincia
+md`### Carga Epidemiológica Proyectada: ${selectedDisease}
+*Sumatoria total de casos estimada para las próximas 52 semanas (1 año).*`
+md`Seleccione una patología arriba para ver cuáles provincias requieren más atención.`
+
+provincial_ranking = d3.rollups(
+  data.filter(d => d.enfermedad == selectedDisease && d.type == "Proyección"),
+  v => d3.sum(v, d => d.yhat),
+  d => d.provincia_nombre
+)
+.map(([provincia, total]) => ({ provincia, total }))
+.sort((a, b) => d3.descending(a.total, b.total))
+.slice(0, 10) // Top 10
+
+// 2. Gráfico de Barras Horizontales
+Plot.plot({
+  marginLeft: 150,
+  height: 750, // <--- AUMENTAMOS ESTO SIGNIFICATIVAMENTE
+  marginTop: 30, // Agregamos un poco de aire arriba de las barras
+  marks: [
+    Plot.barX(provincial_ranking, {
+      x: "total", 
+      y: "provincia", 
+      fill: "#1A3243", // Tu azul institucional
+      sort: {y: "-x"}
+    }),
+    Plot.text(provincial_ranking, {
+      x: "total", 
+      y: "provincia", 
+      text: d => Math.round(d.total).toLocaleString('es-AR'), 
+      dx: 5, 
+      textAnchor: "start"
+    })
+  ],
+  x: {label: "Total Casos Proyectados", grid: true},
+  y: {label: ""}
+})
+```
+
+## Column {width=40%}
+
+
+```{ojs}
+// 1. Datos para gráfico de torta/donas
+md`### Distribución por Patología en ${selectedProv}`
+md`Comparación del volumen total histórico de las tres enfermedades en la jurisdicción seleccionada.`
+
+disease_comp = d3.rollups(
+  data.filter(d => d.provincia_nombre == selectedProv && d.type == "Histórico"),
+  v => d3.sum(v, d => d.y), // 
+  d => d.enfermedad
+)
+.map(([label, value]) => ({ label, value }))
+// 2. Gráfico de Donut
+Plot.plot({
+  height: 300,
+  marks: [
+    Plot.barY(disease_comp, {
+      x: "label", 
+      y: "value", 
+      fill: "label",
+      inset: 0.5
+    })
+  ],
+  color: {
+    domain: ["Bronquiolitis", "Influenza (Gripe)", "Neumonía"],
+    range: ["#1A3243", "#FF7F50", "#29BDEF"] // Azul, Salmón, Cian
+  },
+  y: {grid: true, label: "Total Histórico acumulado"}
+})
+```
